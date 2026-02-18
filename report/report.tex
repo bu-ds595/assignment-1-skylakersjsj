@@ -23,9 +23,7 @@
 }
 
 \begin{document}
-
 \maketitle
-
 \begin{abstract}
 We propose a \textbf{Hybrid MALA + Global Jump} sampler, a mixture-of-kernels
 Markov chain Monte Carlo method that alternates between gradient-guided
@@ -101,102 +99,134 @@ main efficiency metric.
 
 \subsection{Benchmark 1: Rosenbrock (Banana)}
 
-The Rosenbrock distribution,
-$\log p(x,y) = -0.05(1-x)^2 - (y-x^2)^2$,
-has a thin, curved ridge, which tests whether a sampler can move along a
-strongly correlated geometry. Hyperparameters: RWMH $\sigma=1.0$;
-HMC $\varepsilon=0.2$, $L=10$; Hybrid $\varepsilon=0.3$,
-$\sigma_{\text{global}}=3.0$, $q=0.10$.
+The Rosenbrock target has log density
+$\log p(x,y) = -0.05(1-x)^2 - (y-x^2)^2$.
+It features a thin, curved ridge and thus tests whether a sampler can move
+efficiently along a strongly correlated geometry.
+Hyperparameters: RWMH uses $\sigma=1.0$;
+HMC uses $\epsilon=0.2,\, L=10$;
+Hybrid uses $\epsilon=0.3,\, \sigma_{\text{global}}=3.0,\, q=0.15$.
 
 \begin{table}[h]
 \centering
 \caption{Rosenbrock benchmark ($N=50{,}000$).}
-\label{tab:rosenbrock}
+\label{tab:rosenbrock_en}
 \begin{tabular}{lcccccc}
 \toprule
 Method & Acc.\ rate & $\hat{\sigma}_x$ & $\hat{\sigma}_y$
-       & ESS$_x$ & ESS$_y$ \\
+      & ESS$_x$ & ESS$_y$ \\
 \midrule
-RWMH          & 50.0\% & 0.637 & 0.659 & 16{,}997 & 18{,}094 \\
-HMC           & 74.8\% & 2.202 & 5.012 &      42  &      93  \\
-Hybrid (ours) & 61.1\% & 2.079 & 4.619 & \textbf{55} & 61 \\
+RWMH           & 50.0\% & 0.637 & 0.659 & 16{,}997 & 18{,}094 \\
+HMC            & 74.8\% & 2.202 & 5.012 &      42  &      93  \\
+Hybrid (ours)  & 56.7\% & 2.090 & 6.316 &      26  &      34  \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-RWMH shows very high ESS, but it only explores a small neighborhood near the
-origin ($\hat{\sigma}_x = 0.64$) and does not traverse the full banana-shaped
-ridge. In contrast, HMC and the Hybrid cover the target much better
-($\hat{\sigma}_x \approx 2.1$). The Hybrid also slightly improves ESS$_x$
-over HMC (55 vs.\ 42).
+RWMH appears to have very high ESS, but it only explores a small neighborhood
+around the origin (e.g., $\hat{\sigma}_x=0.64$) and does not truly traverse the
+banana-shaped ridge; hence this ``high ESS'' is more reflective of fast local
+mixing in a restricted region. In contrast, HMC and the Hybrid cover a much
+broader region of parameter space (e.g., $\hat{\sigma}_x \approx 2$), indicating
+better exploration along the curved valley.
+
+As shown by the ablation study under the same $(\epsilon,\sigma_{\text{global}})$,
+the Hybrid can achieve substantially higher ESS near an optimal mixture rate
+(e.g., $q=0.15$). This suggests that on Rosenbrock, carefully tuning $q$ is
+important to fully leverage the benefit of global jumps.
 
 \subsection{Benchmark 2: Neal's Funnel}
 
 Neal's Funnel is defined by $v \sim \mathcal{N}(0,9)$ and
-$x \mid v \sim \mathcal{N}(0, e^v)$. This target is a classic stress test for
-fixed-step-size samplers: the marginal scale of $x$ changes exponentially with
-$v$, so one step size cannot work well everywhere. Hyperparameters:
-RWMH $\sigma=1.5$; HMC $\varepsilon=0.3$, $L=5$; Hybrid $\varepsilon=0.5$,
-$\sigma_{\text{global}}=2.0$, $q=0.15$.
+$x \mid v \sim \mathcal{N}(0, e^v)$.
+It is a classic stress test for fixed-step-size samplers: because the marginal
+scale of $x$ changes exponentially with $v$, a single step size cannot work well
+everywhere.
+Hyperparameters: RWMH uses $\sigma=1.5$;
+HMC uses $\epsilon=0.3,\, L=5$;
+Hybrid uses $\epsilon=0.3,\, \sigma_{\text{global}}=3.0,\, q=0.15$.
 
 \begin{table}[h]
 \centering
-\caption{Neal's Funnel benchmark ($N=50{,}000$). True $\sigma_v = 3$.}
-\label{tab:funnel}
+\caption{Neal's Funnel benchmark ($N=50{,}000$). True $\sigma_v=3$.}
+\label{tab:funnel_en}
 \begin{tabular}{lcccccc}
 \toprule
 Method & Acc.\ rate & $\hat{\sigma}_v$ & $\hat{\sigma}_x$
-       & ESS$_v$ & ESS$_x$ \\
+      & ESS$_v$ & ESS$_x$ \\
 \midrule
-RWMH          & 49.1\% & 1.262 & 0.832  & 10{,}350 & 22{,}111 \\
-HMC           & 78.5\% & 3.263 & 11.137 &      32  &     223  \\
-Hybrid (ours) & 75.5\% & \textbf{3.513} & 9.874 & \textbf{68} & 53 \\
+RWMH           & 49.1\% & 0.907 & 0.675  & 18{,}384 & 31{,}415 \\
+HMC            & 78.5\% & 3.263 & 11.137 &      32  &     223  \\
+Hybrid (ours)  & 79.0\% & 3.283 & 10.323 &      58  &      57  \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-RWMH is trapped near the neck ($\hat{\sigma}_v = 1.26 \ll 3$) and therefore
-produces an artificially high ESS from fast local mixing. HMC explores the
-funnel more broadly ($\hat{\sigma}_v = 3.26$) but reaches only ESS$_v = 32$
-in $50{,}000$ steps. The Hybrid gives the closest estimate to the true marginal
-scale ($\hat{\sigma}_v = 3.51$) and more than \textbf{doubles HMC's ESS$_v$}
-(68 vs.\ 32). Overall, the global-jump branch helps the chain occasionally cross
-between the narrow and wide regions, improving mixing along the $v$ axis.
+Although RWMH reports extremely large ESS, it substantially underestimates the
+marginal scale of $v$ ($\hat{\sigma}_v \approx 0.91 \ll 3$), indicating that the
+chain is trapped near the funnel ``neck'' and thus produces inflated ESS due to
+fast local mixing. HMC explores the funnel more broadly
+($\hat{\sigma}_v \approx 3.26$) but achieves only ESS$_v=32$ in $50{,}000$ steps.
+The Hybrid attains a similar marginal scale for $v$
+($\hat{\sigma}_v \approx 3.28$) while improving ESS$_v$ to $58$ (about
+$1.8\times$ HMC).
+
 
 \subsection{Ablation: Effect of Jump Probability q}
 \label{sec:ablation}
 
 We ablate $q \in \{0, 0.05, 0.10, 0.15, 0.20, 0.30, 0.50, 0.70, 1.0\}$ on the
 Rosenbrock distribution with $\varepsilon=0.3$ and $\sigma_{\text{global}}=3.0$,
-using $N=20{,}000$ samples. The acceptance rate drops monotonically from $73\%$
-at $q=0$ to $11\%$ at $q=1$, because large isotropic jumps rarely land on the
-thin ridge. ESS estimates are somewhat noisy at this sample size, but we observe
-a local peak around $q \approx 0.10$ (ESS$_x = 49$, ESS$_y = 67$). This suggests
-that a small fraction of global jumps helps the chain traverse the full banana
-length that pure MALA covers more slowly.
-So that we choose q=0.1.
+using $N=50{,}000$ samples per chain and $4$ independent chains. As $q$ increases,
+the acceptance rate generally decreases (from $63.1\%$ at $q=0$ to $8.9\%$ at
+$q=1$), since large isotropic jumps rarely land on the narrow curved ridge.
+In contrast, sampling efficiency is highly non-monotonic: pure MALA ($q=0$)
+achieves relatively low ESS (minESS $\approx 35$), while a small but nonzero
+jump rate yields a substantial improvement. The best performance occurs at
+$q=0.15$, where ESS is high and balanced across coordinates
+(ESS$_x \approx 196$, ESS$_y \approx 197$; minESS $\approx 196$).
+According to the result, we set $q=0.15$ in subsequent experiments. 
 
 
 \section{Discussion}
 
 \paragraph{Where the Hybrid works well.}
-On Neal's Funnel, the Hybrid clearly performs better than both baselines: it estimates the true
-marginal variance of $v$ more accurately, and it achieves more than twice HMC's effective sample size (ESS)
-for $v$. The main reason is the global-jump branch. By occasionally proposing a large move in parameter space,
-the chain can escape the narrow ``neck'' and re-enter the funnel from the wide region. As a result, it can cover
-a wider range of $v \in [-6,6]$ within the same number of steps, while fixed-step HMC often struggles to do so.
-On Rosenbrock, the Hybrid is also competitive with HMC, and each step is cheaper (no leapfrog loop), while it
-covers the target distribution much better than RWMH.
+On Rosenbrock, the Hybrid (MALA + global jumps) performs strongly: mixing local
+MALA updates with occasional global proposals substantially improves sampling
+efficiency. The ablation study shows that performance is highly sensitive to the
+jump probability $q$. With $\epsilon=0.3$ and $\sigma_{\text{global}}=3.0$
+fixed, using a small but nonzero $q$ yields a large increase in ESS. In
+particular, $q=0.15$ achieves high and well-balanced ESS across both dimensions
+(minESS $\approx 196$), while
+maintaining a reasonable acceptance rate ($57.1\%$). By contrast, pure MALA
+($q=0$) has a higher acceptance rate ($63.1\%$) but a much lower ESS
+(minESS $\approx 35$), indicating strong autocorrelation and slow exploration
+along the narrow curved ridge. This suggests that occasional global proposals
+help the chain traverse the banana-shaped valley more quickly than local moves
+alone. Compared with HMC, the Hybrid remains competitive and avoids a leapfrog
+loop, so each iteration is cheaper.
 
 \paragraph{Where the Hybrid struggles.}
-Like other fixed-step-size methods, the Hybrid cannot fully adapt to the extreme geometry of Neal's Funnel.
-A step size that works well in the wide region can be too large near the narrow neck, leading to more rejections.
-Also, the best MALA step size is quite different across the two benchmarks
-($\varepsilon=0.3$ for Rosenbrock and $\varepsilon=0.5$ for the Funnel), so we need separate tuning.
-Maybe adaptive methods such as NUTS can adjust their settings and get good result.
+Performance is clearly non-monotonic in $q$, and the method can degrade sharply
+when the mixture is poorly balanced. For example, increasing $q$ too much does
+not necessarily help: at $q=1$ (pure global jumps), the acceptance rate drops to
+$8.9\%$ and mixing becomes uneven (e.g., ESS$_y \approx 48$), because large
+isotropic proposals rarely land on the thin Rosenbrock ridge. Even within the
+intermediate range, we observe failures such as $q=0.20$, where ESS becomes very
+low (minESS $\approx 22$) despite a moderate acceptance rate, suggesting an
+interaction between the fixed global scale $\sigma_{\text{global}}$ and the
+mixture rate $q$. More broadly, the Hybrid still requires manual tuning of
+$\epsilon$, $\sigma_{\text{global}}$, and $q$ across targets, which limits
+robustness.
 
 \paragraph{Future directions.}
-A natural next step is to add adaptive tuning for $\varepsilon$, for example using dual averaging as in NUTS.
+A natural next step is to incorporate adaptive tuning so the sampler is less
+sensitive to target geometry. For instance, dual averaging could adjust
+$\epsilon$ to target a desired MALA acceptance rate, and a simple adaptation
+scheme could tune $\sigma_{\text{global}}$ (or $q$) to avoid regimes where
+global proposals are almost always rejected.
+
+ for example using dual averaging as in NUTS.
 
 
 \section{AI Collaboration}
@@ -205,6 +235,7 @@ A natural next step is to add adaptive tuning for $\varepsilon$, for example usi
   \item \textbf{What I used AI for.} AI helped me propose sampler ideas (e.g., adding a \textbf{MALA} component and using a mixture with global jumps), interpret diagnostics (especially what \textbf{ESS} means and why it can be misleading), and improve the clarity of my method/experiment text.
   \item \textbf{Prompting strategies that worked.} The best approach was: first ask AI to \textbf{generate multiple options and improvement suggestions}, then provide concrete context (target distribution, current acceptance rates/ESS tables, and small code snippets) so the advice became specific and actionable.
   \item \textbf{Where AI helped vs.\ where I corrected it.} AI was strongest at method improvement ideas, tuning directions, and catching small issues (missing terms, inconsistent notation, minor logic bugs). I still needed to guide it on details that must match my code and results, and to verify that final claims were supported by the actual experiments.
+  I still use chatGPT to help me correct the format of latex, it helps a lot in formating.
   \item \textbf{What I learned.} Treating AI as a \textbf{tool and a suggestion-oriented teammate} works best: let it propose plans and spot problems, then I verify, implement, and decide what to keep.
 \end{itemize}
 
